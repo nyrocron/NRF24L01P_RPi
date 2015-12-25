@@ -33,3 +33,7 @@
 
 # Vim
 *.swp
+
+# Project executables
+/sender
+/receiver

@@ -9,7 +9,7 @@ BINARIES = sender receiver filesend filerecv
 default: $(BINARIES)
 
 clean:
-	rm -rf *.o sender receiver
+	rm -rf *.o $(BINARIES)
 
 sender: sender.c $(OBJECTS) $(HEADERS)
 	$(CC) $(CFLAGS) -o $@ $< $(OBJECTS)

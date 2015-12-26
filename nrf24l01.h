@@ -9,13 +9,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TAG "NRF24L01"
+#define TAG "NRF24L01 "
 
 #define DEBUG
 
 #define CMD_MAXLEN 32
-#define SPI_SPEED 1000000
+#define SPI_SPEED 10000000
 #define PACKET_LEN 32
+#define TX_TIMEOUT 50 /* ms */
+#define WAIT_INTERVAL 100 /* us */
 
 #define SEC_MILLIS 1000
 #define MILLI_NSECS 1000000
@@ -82,15 +84,34 @@ void rf_shutdown(struct nrf24l01 *dev);
 
 int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 		unsigned int timeout);
+int rf_send(struct nrf24l01 *dev, void *buf, size_t len);
 
+/* Set RX address */
 int rf_rx_addr(struct nrf24l01 *dev, uint64_t addr);
+/* Set TX address */
+int rf_tx_addr(struct nrf24l01 *dev, uint64_t addr);
 
 uint8_t rf_reg_read(struct nrf24l01 *dev, uint8_t addr);
 int rf_reg_write(struct nrf24l01 *dev, uint8_t addr, uint8_t value);
 int rf_reg_writelong(struct nrf24l01 *dev, uint8_t addr,
 		void *buf, size_t len);
 
+/*
+ * Send command to RF module via SPI.
+ * @param cmd The command to send.
+ * @param read Specifies whether this is a read or write operation.
+ *             0: write, 1: read. Should be 0 for commands without data.
+ * @return negative value on error, status on success
+ */
 int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 		int read);
+
+/*
+ * Poll status until the specified mask matches or the operation times out.
+ * Clears interrupt flags and returns the status retrieved before doing so.
+ * @param timeout Time to wait for a match in milliseconds.
+ * @return -1 on timeout, status on success
+ */
+int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout);
 
 #endif /* __NRF24L01_H__ */

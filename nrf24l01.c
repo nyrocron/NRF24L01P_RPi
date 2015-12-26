@@ -95,9 +95,7 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 		goto out;
 	}
 
-	conf |= CONF_PRIM_RX;
-
-	ret = rf_reg_write(dev, REG_CONFIG, conf);
+	ret = rf_reg_write(dev, REG_CONFIG, conf | CONF_PRIM_RX);
 	if (ret < 0)
 		goto out;
 
@@ -110,44 +108,94 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 		goto out;
 	}
 #endif
-	
-	struct timespec start, now;
-	uint64_t millis = 0;
-	clock_gettime(CLOCK_MONOTONIC, &start);
 
-	uint8_t status = 0;
+	/* start receiving and wait for the data ready flag */
 	gpio_write(dev->ce, 1);
-	while (millis < timeout) {
-		ret = rf_command(dev, NOP, NULL, 0, 0);
-		if (ret < 0)
-			goto out;
-		status = ret & 0xff;
-		if (status & RX_DR)
-			break;
+	ret = rf_wait_status(dev, RX_DR, timeout);
+	gpio_write(dev->ce, 0);
+	if (ret < 0)
+		goto out; /* timeout */
+	
+	/* handle successful receive */
+	ret = rf_command(dev, R_RX_PAYLOAD, buf, len, 1);
+	if (ret < 0)
+		goto out;
 
-		usleep(1000);
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		millis = (now.tv_sec - start.tv_sec) * SEC_MILLIS +
-				(now.tv_nsec - start.tv_nsec) / MILLI_NSECS;
+	ret = 0;
+
+out:
+	/* unset RX mode */
+	rf_reg_write(dev, REG_CONFIG, conf & ~CONF_PRIM_RX);
+	return ret;
+}
+
+int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
+{
+	int ret;
+
+	/* ensure we're in TX mode */
+	uint8_t conf;
+	conf = rf_reg_read(dev, REG_CONFIG);
+	if (conf == 0xff) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_send cfg read failed\n");
+#endif
+		ret = -1;
+		goto out;
 	}
+	ret = rf_reg_write(dev, REG_CONFIG, conf & ~CONF_PRIM_RX);
+	if (ret < 0) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_send cfg write failed\n");
+#endif
+		goto out;
+	}
+	
+	/* write data */
+	uint8_t txbuf[PACKET_LEN];
+	memset(txbuf, 0, sizeof(txbuf));
+	if (len > PACKET_LEN)
+		len = PACKET_LEN;
+	memcpy(txbuf, buf, len);
+	ret = rf_command(dev, W_TX_PAYLOAD, txbuf, sizeof(txbuf), 0);
+	if (ret < 0) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_send txpayload write failed\n");
+#endif
+		goto out;
+	}
+	
+	/* send data */
+	gpio_write(dev->ce, 1);
+	usleep(10);
 	gpio_write(dev->ce, 0);
 
-	/* handle successful receive */
-	if (status & RX_DR) {
-		ret = rf_command(dev, R_RX_PAYLOAD, buf, len, 1);
-		if (ret < 0)
-			goto out;
-
+	/* wait for transmission to complete */
+	ret = rf_wait_status(dev, TX_DS | MAX_RT, TX_TIMEOUT);
+	if (ret < 0) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_send timeout\n");
+#endif
+		goto out;
+	}
+	if (ret & MAX_RT) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_send MAX_RT\n");
+#endif
+		ret = -1;
+		goto out;
+	}
+	if (ret & TX_DS) {
 		ret = 0;
 		goto out;
 	}
-
-	ret = 1; /* timeout */
+	ret = -1;
 
 out:
 	return ret;
 }
 
+/* Helper for RF module GPIO setup */
 static int rf_pinsetup(struct nrf24l01 *dev)
 {
 	int ret;
@@ -263,7 +311,25 @@ int rf_rx_addr(struct nrf24l01 *dev, uint64_t addr)
 	if (ret < 0)
 		goto out;
 	
-	return 0;
+	ret = 0;
+
+out:
+	return ret;
+}
+
+int rf_tx_addr(struct nrf24l01 *dev, uint64_t addr)
+{
+	int ret;
+
+	ret = rf_reg_writelong(dev, REG_TX_ADDR, &addr, 5);
+	if (ret < 0)
+		goto out;
+
+	ret = rf_reg_writelong(dev, REG_RX_ADDR_P0, &addr, 5);
+	if (ret < 0)
+		goto out;
+	
+	ret = 0;
 
 out:
 	return ret;
@@ -273,4 +339,37 @@ int rf_reg_writelong(struct nrf24l01 *dev, uint8_t addr,
 		void *buf, size_t len)
 {
 	return rf_command(dev, W_REGISTER | addr, buf, len, 0);
+}
+
+int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
+{
+	int ret;
+
+	struct timespec start, now;
+	uint64_t millis = 0;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
+	uint8_t status = 0;
+	while (millis < timeout) {
+		ret = rf_command(dev, NOP, NULL, 0, 0);
+		if (ret < 0)
+			goto out;
+		status = ret & 0xff;
+		if (status & mask) {
+			/* clear interrupt flags */
+			rf_reg_write(dev, REG_STATUS, IRQ_MASK);
+			ret = status;
+			goto out;
+		}
+
+		usleep(WAIT_INTERVAL);
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		millis = (now.tv_sec - start.tv_sec) * SEC_MILLIS +
+				(now.tv_nsec - start.tv_nsec) / MILLI_NSECS;
+	}
+
+	ret = -1;
+
+out:
+	return ret;
 }

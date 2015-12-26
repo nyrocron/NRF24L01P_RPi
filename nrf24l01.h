@@ -79,12 +79,31 @@ struct nrf24l01 {
 	int cs;
 };
 
+#define FT_DATA	0b00000001
+#define FT_END	0b00000010
+#define FT_ERR	0b00000100
+
+struct rf_packet {
+	uint8_t flags;
+	uint8_t dlen;
+	uint8_t data[30];
+};
+
 int rf_init(struct nrf24l01 *dev);
 void rf_shutdown(struct nrf24l01 *dev);
 
 int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 		unsigned int timeout);
 int rf_send(struct nrf24l01 *dev, void *buf, size_t len);
+
+int rf_packet_recv(struct nrf24l01 *dev, struct rf_packet *packet,
+		unsigned int timeout);
+int rf_packet_send(struct nrf24l01 *dev, struct rf_packet *packet);
+
+/* receive into a file */
+int rf_file_recv(struct nrf24l01 *dev, FILE *fp, unsigned int timeout);
+/* send from a file until EOF */
+int rf_file_send(struct nrf24l01 *dev, FILE *fp);
 
 /* Set RX address */
 int rf_rx_addr(struct nrf24l01 *dev, uint64_t addr);

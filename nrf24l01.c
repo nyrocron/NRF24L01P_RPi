@@ -129,6 +129,8 @@ out:
 	return ret;
 }
 
+uint8_t txbuffer[PACKET_LEN];
+
 int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 {
 	int ret;
@@ -151,13 +153,16 @@ int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 		goto out;
 	}
 	
-	/* write data */
-	uint8_t txbuf[PACKET_LEN];
-	memset(txbuf, 0, sizeof(txbuf));
-	if (len > PACKET_LEN)
-		len = PACKET_LEN;
-	memcpy(txbuf, buf, len);
-	ret = rf_command(dev, W_TX_PAYLOAD, txbuf, sizeof(txbuf), 0);
+	/* apply padding and write data */
+	uint8_t *txbuf;
+	if (len < PACKET_LEN) {
+		memcpy(txbuffer, buf, len);
+		memset(&txbuffer[len], 0, sizeof(txbuffer) - len);
+		txbuf = txbuffer;
+	} else {
+		txbuf = buf;
+	}
+	ret = rf_command(dev, W_TX_PAYLOAD, txbuf, PACKET_LEN, 0);
 	if (ret < 0) {
 #ifdef DEBUG
 		fprintf(stderr, TAG "rf_send txpayload write failed\n");
@@ -369,6 +374,82 @@ int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 	}
 
 	ret = -1;
+
+out:
+	return ret;
+}
+
+int rf_packet_recv(struct nrf24l01 *dev, struct rf_packet *packet,
+		unsigned int timeout)
+{
+	return rf_receive(dev, packet, sizeof(packet), timeout);
+}
+
+int rf_packet_send(struct nrf24l01 *dev, struct rf_packet *packet)
+{
+	return rf_send(dev, packet, sizeof(packet));
+}
+
+int rf_file_recv(struct nrf24l01 *dev, FILE *fp, unsigned int timeout)
+{
+	int ret;
+	struct rf_packet packet;
+
+	while (1) {
+		ret = rf_packet_recv(dev, &packet, timeout);
+		if (ret)
+			goto out;
+
+		if (packet.flags & FT_ERR) {
+			ret = -1;
+			goto out;
+		}
+
+		if (packet.flags & FT_DATA) {
+			size_t written = 0;
+			while (written < packet.dlen) {
+				written += fwrite(&packet.data[written], 1,
+						packet.dlen - written, fp);
+				ret = ferror(fp);
+				if (ret)
+					goto out;
+			}
+		}
+
+		if (packet.flags & FT_END)
+			break;
+	}
+
+	ret = 0;
+
+out:
+	return ret;
+}
+
+int rf_file_send(struct nrf24l01 *dev, FILE *fp)
+{
+	int ret;
+	struct rf_packet packet;
+
+	int err = 0;
+	while (!err && !feof(fp)) {
+		packet.dlen = fread(&packet.data, 1, sizeof(packet.data), fp);
+
+		if (packet.dlen > 0) {
+			packet.flags = FT_DATA;
+		} else {
+			if (ferror(fp)) {
+				packet.flags = FT_ERR;
+			}
+			if (feof(fp)) {
+				packet.flags = FT_END;
+			}
+		}
+		
+		ret = rf_packet_send(dev, &packet);
+		if (ret)
+			goto out;
+	}
 
 out:
 	return ret;

@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 
 #include "nrf24l01.h"
 
@@ -15,6 +16,20 @@
 volatile sig_atomic_t flag = 0;
 void sig_handler(int sig) {
 	flag = 1;
+}
+
+void timespec_diff(struct timespec *result,
+		struct timespec *start, struct timespec *stop)
+{
+	if ((stop->tv_nsec - start->tv_nsec) < 0) {
+		result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
+	} else {
+		result->tv_sec = stop->tv_sec - start->tv_sec;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+	}
+
+	return;
 }
 
 int main(int argc, char **argv)
@@ -54,7 +69,14 @@ int main(int argc, char **argv)
 		goto out_rfclose;
 	}
 
+	struct timespec start, end, delta;
+	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = rf_file_send(&dev, infile);
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	timespec_diff(&delta, &start, &end);
+
+	printf("done sending after %0ld.%09lds\n",
+			delta.tv_sec, delta.tv_nsec);
 
 out_rfclose:
 	rf_shutdown(&dev);

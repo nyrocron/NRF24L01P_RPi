@@ -17,7 +17,8 @@
 #define SPI_SPEED 10000000
 #define PACKET_LEN 32
 #define TX_TIMEOUT 50 /* ms */
-#define WAIT_INTERVAL 1000 /* us */
+#define WAIT_INTERVAL 10 /* us */
+#define CSDELAY 1
 
 #define SEC_MILLIS 1000
 #define MILLI_NSECS 1000000

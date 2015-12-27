@@ -49,7 +49,7 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 	}
 
 	gpio_write(dev->cs, 0);
-	usleep(10);
+	usleep(CSDELAY);
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &xfer);
 	if (ret < 0) {
@@ -57,7 +57,7 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 		goto out_close;
 	}
 
-	usleep(10);
+	usleep(CSDELAY);
 	gpio_write(dev->cs, 1);
 
 	if (read && len > 0)
@@ -274,7 +274,7 @@ int rf_init(struct nrf24l01 *dev)
 	if (ret < 0)
 		goto out;
 
-	ret = rf_reg_write(dev, REG_RF_SETUP, 0b00000000);
+	ret = rf_reg_write(dev, REG_RF_SETUP, 0b00001000);
 	if (ret < 0)
 		goto out;
 

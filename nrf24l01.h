@@ -86,8 +86,7 @@ struct nrf24l01 {
 struct rf_packet {
 	uint8_t flags;
 	uint8_t dlen;
-	uint8_t seq;
-	uint8_t data[29];
+	uint8_t data[30];
 };
 
 int rf_init(struct nrf24l01 *dev);
@@ -128,7 +127,6 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 
 /*
  * Poll status until the specified mask matches or the operation times out.
- * Clears interrupt flags and returns the status retrieved before doing so.
  * @param timeout Time to wait for a match in milliseconds.
  * @return -1 on timeout, status on success
  */

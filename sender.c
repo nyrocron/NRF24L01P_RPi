@@ -40,7 +40,6 @@ int main(int argc, char **argv)
 	struct rf_packet packet = {
 		.flags = FT_DATA,
 		.dlen = strlen(msg),
-		.seq = 0,
 	};
 	memset(&packet.data, 0, sizeof(packet.data));
 	strcpy((char*)&packet.data, msg);

@@ -51,8 +51,8 @@ int main(int argc, char **argv)
 				printf("\n");
 			}
 
-			printf("  FLAGS=%02x DLEN=%d SEQ=%d\n", packet.flags,
-					packet.dlen, packet.seq);
+			printf("  FLAGS=%02x DLEN=%d\n", packet.flags,
+					packet.dlen);
 		}
 	}
 

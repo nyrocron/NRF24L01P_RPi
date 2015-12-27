@@ -89,6 +89,14 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 {
 	int ret;
 
+	/* first, check if there already is data in RX FIFO */
+	/* TODO */
+/*
+	uint8_t fifostat = rf_reg_read(dev, REG_FIFO_STATUS);
+	if (!(fifostat & RX_EMPTY)) {
+	}
+*/
+
 	uint8_t conf = rf_reg_read(dev, REG_CONFIG);
 	if (conf == 0xff) {
 #ifdef DEBUG
@@ -121,6 +129,11 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 #endif
 		goto out;
 	}
+
+	/* clear interrupt flag */
+	ret = rf_reg_write(dev, REG_STATUS, RX_DR);
+	if (ret < 0)
+		goto out;
 
 	ret = 0;
 
@@ -184,14 +197,20 @@ int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 #endif
 		goto out;
 	}
-	if (ret & MAX_RT) {
+	uint8_t status = ret;
+	/* clear interrupt flags */
+	ret = rf_reg_write(dev, REG_STATUS, TX_DS | MAX_RT);
+	if (ret < 0)
+		goto out;
+
+	if (status & MAX_RT) {
 #ifdef DEBUG
 		fprintf(stderr, TAG "rf_send MAX_RT\n");
 #endif
 		ret = -1;
 		goto out;
 	}
-	if (ret & TX_DS) {
+	if (status & TX_DS) {
 		ret = 0;
 		goto out;
 	}
@@ -369,9 +388,7 @@ int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 		}
 		status = ret & 0xff;
 		if (status & mask) {
-			/* clear interrupt flags */
-			rf_reg_write(dev, REG_STATUS, IRQ_MASK);
-			/* return status from before clearing flags */
+			/* return status */
 			ret = status;
 			goto out;
 		}

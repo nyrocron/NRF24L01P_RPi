@@ -17,7 +17,7 @@
 #define SPI_SPEED 10000000
 #define PACKET_LEN 32
 #define TX_TIMEOUT 50 /* ms */
-#define WAIT_INTERVAL 100 /* us */
+#define WAIT_INTERVAL 1000 /* us */
 
 #define SEC_MILLIS 1000
 #define MILLI_NSECS 1000000
@@ -86,7 +86,8 @@ struct nrf24l01 {
 struct rf_packet {
 	uint8_t flags;
 	uint8_t dlen;
-	uint8_t data[30];
+	uint8_t seq;
+	uint8_t data[29];
 };
 
 int rf_init(struct nrf24l01 *dev);

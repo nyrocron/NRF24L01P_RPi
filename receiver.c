@@ -34,25 +34,27 @@ int main(int argc, char **argv)
 		goto out;
 	}
 	
-	printf("CONFIG: %02x\n", rf_reg_read(&dev, REG_CONFIG));
-	
-	char msg[32];
+	struct rf_packet packet;
 
 	while (!flag) {
-		if (rf_receive(&dev, msg, sizeof(msg), 1 * 2000))
+		if (rf_packet_recv(&dev, &packet, 2000))
 			printf("timeout\n");
 		else {
-			printf("received: %s\n", msg);
-			/*usleep(1000 * 1000);*/
+			printf("received packet\n");
+			
+			for (int ln = 0; ln < 4; ln++) {
+				printf("  ");
+				for (int i = 0; i < 8; i++) {
+					printf("%02x",
+						((uint8_t*)&packet)[ln*8+i]);
+				}
+				printf("\n");
+			}
+
+			printf("  FLAGS=%02x DLEN=%d SEQ=%d\n", packet.flags,
+					packet.dlen, packet.seq);
 		}
 	}
-/*
-	if (rf_receive(&dev, msg, sizeof(msg), 3 * 1000)) {
-		fprintf(stderr, "receive failed\n");
-		goto out;
-	}
-	printf("received message: %s\n", msg);
-*/
 
 out:
 	rf_shutdown(&dev);

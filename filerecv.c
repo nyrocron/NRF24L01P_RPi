@@ -10,7 +10,7 @@
 
 #include "nrf24l01.h"
 
-#define RX_TIMEOUT 10000
+#define RX_TIMEOUT 5000
 #define RXADDR 0x0a0b0c0d0e
 
 volatile sig_atomic_t flag = 0;

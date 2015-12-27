@@ -91,6 +91,9 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 
 	uint8_t conf = rf_reg_read(dev, REG_CONFIG);
 	if (conf == 0xff) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "recv cfg read error\n");
+#endif
 		ret = -1;
 		goto out;
 	}
@@ -99,27 +102,25 @@ int rf_receive(struct nrf24l01 *dev, void *buf, size_t len,
 	if (ret < 0)
 		goto out;
 
-#ifdef DEBUG
-	/* verify config */
-	conf = rf_reg_read(dev, REG_CONFIG);
-	if (!(conf & CONF_PRIM_RX)) {
-		fprintf(stderr, TAG "RX CONF invalid %02x\n", conf);
-		ret = -1;
-		goto out;
-	}
-#endif
-
 	/* start receiving and wait for the data ready flag */
 	gpio_write(dev->ce, 1);
 	ret = rf_wait_status(dev, RX_DR, timeout);
 	gpio_write(dev->ce, 0);
-	if (ret < 0)
+	if (ret < 0) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "recv wait_status error\n");
+#endif
 		goto out; /* timeout */
+	}
 	
 	/* handle successful receive */
 	ret = rf_command(dev, R_RX_PAYLOAD, buf, len, 1);
-	if (ret < 0)
+	if (ret < 0) {
+#ifdef DEBUG
+		fprintf(stderr, TAG "recv R_RX_PAYLOAD error\n");
+#endif
 		goto out;
+	}
 
 	ret = 0;
 
@@ -153,7 +154,7 @@ int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 		goto out;
 	}
 	
-	/* apply padding and write data */
+	/* apply padding and write data to FIFO */
 	uint8_t *txbuf;
 	if (len < PACKET_LEN) {
 		memcpy(txbuffer, buf, len);
@@ -170,7 +171,7 @@ int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 		goto out;
 	}
 	
-	/* send data */
+	/* initiate transmission */
 	gpio_write(dev->ce, 1);
 	usleep(10);
 	gpio_write(dev->ce, 0);
@@ -194,6 +195,9 @@ int rf_send(struct nrf24l01 *dev, void *buf, size_t len)
 		ret = 0;
 		goto out;
 	}
+#ifdef DEBUG
+	fprintf(stderr, TAG "rf_send INVALID STATE\n");
+#endif
 	ret = -1;
 
 out:
@@ -357,12 +361,17 @@ int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 	uint8_t status = 0;
 	while (millis < timeout) {
 		ret = rf_command(dev, NOP, NULL, 0, 0);
-		if (ret < 0)
+		if (ret < 0) {
+#ifdef DEBUG
+			fprintf(stderr, TAG "wait_status read status error\n");
+#endif
 			goto out;
+		}
 		status = ret & 0xff;
 		if (status & mask) {
 			/* clear interrupt flags */
 			rf_reg_write(dev, REG_STATUS, IRQ_MASK);
+			/* return status from before clearing flags */
 			ret = status;
 			goto out;
 		}
@@ -373,6 +382,9 @@ int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 				(now.tv_nsec - start.tv_nsec) / MILLI_NSECS;
 	}
 
+#ifdef DEBUG
+	fprintf(stderr, TAG "wait_status timeout\n");
+#endif
 	ret = -1;
 
 out:
@@ -382,12 +394,12 @@ out:
 int rf_packet_recv(struct nrf24l01 *dev, struct rf_packet *packet,
 		unsigned int timeout)
 {
-	return rf_receive(dev, packet, sizeof(packet), timeout);
+	return rf_receive(dev, packet, sizeof(*packet), timeout);
 }
 
 int rf_packet_send(struct nrf24l01 *dev, struct rf_packet *packet)
 {
-	return rf_send(dev, packet, sizeof(packet));
+	return rf_send(dev, packet, sizeof(*packet));
 }
 
 int rf_file_recv(struct nrf24l01 *dev, FILE *fp, unsigned int timeout)
@@ -397,10 +409,18 @@ int rf_file_recv(struct nrf24l01 *dev, FILE *fp, unsigned int timeout)
 
 	while (1) {
 		ret = rf_packet_recv(dev, &packet, timeout);
-		if (ret)
+		if (ret) {
+#ifdef DEBUG
+			fprintf(stderr, TAG "file_recv packet error %d\n",
+					ret);
+#endif
 			goto out;
+		}
 
 		if (packet.flags & FT_ERR) {
+#ifdef DEBUG
+			fprintf(stderr, TAG "file_recv FT_ERR\n");
+#endif
 			ret = -1;
 			goto out;
 		}
@@ -416,8 +436,12 @@ int rf_file_recv(struct nrf24l01 *dev, FILE *fp, unsigned int timeout)
 			}
 		}
 
-		if (packet.flags & FT_END)
+		if (packet.flags & FT_END) {
+#ifdef DEBUG
+			fprintf(stderr, TAG "file_recv FT_END\n");
+#endif
 			break;
+		}
 	}
 
 	ret = 0;
@@ -437,6 +461,8 @@ int rf_file_send(struct nrf24l01 *dev, FILE *fp)
 
 		if (packet.dlen > 0) {
 			packet.flags = FT_DATA;
+			if (feof(fp))
+				packet.flags |= FT_END;
 		} else {
 			if (ferror(fp)) {
 				packet.flags = FT_ERR;
@@ -447,8 +473,12 @@ int rf_file_send(struct nrf24l01 *dev, FILE *fp)
 		}
 		
 		ret = rf_packet_send(dev, &packet);
-		if (ret)
+		if (ret) {
+#ifdef DEBUG
+			fprintf(stderr, TAG "file_send send error\n");
+#endif
 			goto out;
+		}
 	}
 
 out:

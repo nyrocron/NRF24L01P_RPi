@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -34,8 +35,18 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
+	const char *msg = "Hello";
+
+	struct rf_packet packet = {
+		.flags = FT_DATA,
+		.dlen = strlen(msg),
+		.seq = 0,
+	};
+	memset(&packet.data, 0, sizeof(packet.data));
+	strcpy((char*)&packet.data, msg);
+
 	while (!flag) {
-		if (rf_send(&dev, "Hello", 5)) {
+		if (rf_packet_send(&dev, &packet)) {
 			printf("send failed\n");
 		} else {
 			printf("send ok\n");

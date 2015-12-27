@@ -369,6 +369,20 @@ int rf_reg_writelong(struct nrf24l01 *dev, uint8_t addr,
 	return rf_command(dev, W_REGISTER | addr, buf, len, 0);
 }
 
+/* difference between two timespecs in milliseconds */
+static uint64_t timespec_diff(struct timespec *ts, struct timespec *te)
+{
+	struct timespec delta;
+	if (te->tv_nsec < ts->tv_nsec) {
+		delta.tv_sec = te->tv_sec - ts->tv_sec - 1;
+		delta.tv_nsec = te->tv_nsec - ts->tv_nsec + 1000000000;
+	} else {
+		delta.tv_sec = te->tv_sec - ts->tv_sec;
+		delta.tv_nsec = te->tv_nsec - ts->tv_nsec;
+	}
+	return delta.tv_sec * 1000 + delta.tv_nsec / 1000000;
+}
+
 int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 {
 	int ret;
@@ -395,8 +409,7 @@ int rf_wait_status(struct nrf24l01 *dev, uint8_t mask, unsigned int timeout)
 
 		usleep(WAIT_INTERVAL);
 		clock_gettime(CLOCK_MONOTONIC, &now);
-		millis = (now.tv_sec - start.tv_sec) * SEC_MILLIS +
-				(now.tv_nsec - start.tv_nsec) / MILLI_NSECS;
+		millis = timespec_diff(&start, &now);
 	}
 
 #ifdef DEBUG

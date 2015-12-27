@@ -21,15 +21,13 @@ void sig_handler(int sig) {
 void timespec_diff(struct timespec *result,
 		struct timespec *start, struct timespec *stop)
 {
-	if ((stop->tv_nsec - start->tv_nsec) < 0) {
+	if (stop->tv_nsec < start->tv_nsec) {
 		result->tv_sec = stop->tv_sec - start->tv_sec - 1;
 		result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000;
 	} else {
 		result->tv_sec = stop->tv_sec - start->tv_sec;
 		result->tv_nsec = stop->tv_nsec - start->tv_nsec;
 	}
-
-	return;
 }
 
 int main(int argc, char **argv)

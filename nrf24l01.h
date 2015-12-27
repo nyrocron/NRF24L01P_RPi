@@ -20,9 +20,6 @@
 #define WAIT_INTERVAL 10 /* us */
 #define CSDELAY 1
 
-#define SEC_MILLIS 1000
-#define MILLI_NSECS 1000000
-
 /* Commands */
 #define R_REGISTER 0b00000000
 #define W_REGISTER 0b00100000

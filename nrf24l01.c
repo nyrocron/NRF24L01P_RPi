@@ -43,7 +43,7 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 
 	int fd = open(dev->spi, O_RDWR);
 	if (fd < 0) {
-		perror(TAG "cmd open");
+		perror(TAG "cmd open()");
 		ret = -1;
 		goto out;
 	}
@@ -53,7 +53,7 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 
 	ret = ioctl(fd, SPI_IOC_MESSAGE(1), &xfer);
 	if (ret < 0) {
-		perror(TAG "cmd ioctl");
+		perror(TAG "cmd ioctl()");
 		goto out_close;
 	}
 

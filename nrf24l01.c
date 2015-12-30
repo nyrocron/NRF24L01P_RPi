@@ -44,6 +44,9 @@ int rf_command(struct nrf24l01 *dev, uint8_t cmd, void *buf, size_t len,
 	int fd = open(dev->spi, O_RDWR);
 	if (fd < 0) {
 		perror(TAG "cmd open()");
+#ifdef DEBUG
+		fprintf(stderr, TAG "rf_command open(%s)", dev->spi);
+#endif
 		ret = -1;
 		goto out;
 	}
@@ -253,6 +256,9 @@ out_reset_ce:
 out_unex_ce:
 	gpio_unexport(dev->ce);
 out:
+#ifdef DEBUG
+	fprintf(stderr, TAG "rf_pinsetup fail\n");
+#endif
 	return ret;
 }
 
@@ -274,7 +280,7 @@ int rf_init(struct nrf24l01 *dev)
 	if (ret < 0)
 		goto out;
 
-	ret = rf_reg_write(dev, REG_RF_SETUP, 0b00001000);
+	ret = rf_reg_write(dev, REG_RF_SETUP, 0b00001110);
 	if (ret < 0)
 		goto out;
 
@@ -358,6 +364,36 @@ int rf_tx_addr(struct nrf24l01 *dev, uint64_t addr)
 		goto out;
 	
 	ret = 0;
+
+out:
+	return ret;
+}
+
+int rf_speed(struct nrf24l01 *dev, uint8_t speed)
+{
+	int ret;
+
+	uint8_t rf_setup;
+	ret = rf_reg_read(dev, REG_RF_SETUP);
+	if (ret < 0)
+		goto out;
+	rf_setup = ret;
+	
+	rf_setup &= ~SPEED_MASK;
+	switch (speed) {
+	case SPEED_250K:
+	case SPEED_1M:
+	case SPEED_2M:
+		rf_setup |= speed;
+		break;
+	default:
+		ret = -1;
+		goto out;
+	}
+
+	ret = rf_reg_write(dev, REG_RF_SETUP, rf_setup);
+	if (ret < 0)
+		goto out;
 
 out:
 	return ret;
@@ -489,18 +525,13 @@ int rf_file_send(struct nrf24l01 *dev, FILE *fp)
 	while (!err && !feof(fp)) {
 		packet.dlen = fread(&packet.data, 1, sizeof(packet.data), fp);
 
-		if (packet.dlen > 0) {
+		if (packet.dlen > 0)
 			packet.flags = FT_DATA;
-			if (feof(fp))
-				packet.flags |= FT_END;
-		} else {
-			if (ferror(fp)) {
-				packet.flags = FT_ERR;
-			}
-			if (feof(fp)) {
-				packet.flags = FT_END;
-			}
-		}
+		else if (ferror(fp))
+			packet.flags = FT_ERR;
+
+		if (feof(fp))
+			packet.flags |= FT_END;
 		
 		ret = rf_packet_send(dev, &packet);
 		if (ret) {

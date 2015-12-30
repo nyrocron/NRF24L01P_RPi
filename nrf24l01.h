@@ -16,8 +16,8 @@
 #define CMD_MAXLEN 32
 #define SPI_SPEED 10000000
 #define PACKET_LEN 32
-#define TX_TIMEOUT 50 /* ms */
-#define WAIT_INTERVAL 10 /* us */
+#define TX_TIMEOUT 100 /* ms */
+#define WAIT_INTERVAL 100 /* us */
 #define CSDELAY 1
 
 /* Commands */
@@ -71,6 +71,12 @@
 #define TX_DS 0b00100000
 #define MAX_RT 0b00010000
 
+/* Speed options */
+#define SPEED_MASK	0b00101000
+#define SPEED_250K	0b00100000
+#define SPEED_1M	0b00000000
+#define SPEED_2M	0b00001000
+
 struct nrf24l01 {
 	char *spi;
 	int ce;
@@ -84,7 +90,7 @@ struct nrf24l01 {
 struct rf_packet {
 	uint8_t flags;
 	uint8_t dlen;
-	uint8_t data[30];
+	uint8_t data[PACKET_LEN - 2];
 };
 
 int rf_init(struct nrf24l01 *dev);
@@ -107,6 +113,7 @@ int rf_file_send(struct nrf24l01 *dev, FILE *fp);
 int rf_rx_addr(struct nrf24l01 *dev, uint64_t addr);
 /* Set TX address */
 int rf_tx_addr(struct nrf24l01 *dev, uint64_t addr);
+int rf_speed(struct nrf24l01 *dev, uint8_t speed);
 
 uint8_t rf_reg_read(struct nrf24l01 *dev, uint8_t addr);
 int rf_reg_write(struct nrf24l01 *dev, uint8_t addr, uint8_t value);

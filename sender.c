@@ -35,23 +35,49 @@ int main(int argc, char **argv)
 		goto out;
 	}
 
-	const char *msg = "Hello";
+	if (rf_speed(&dev, SPEED_250K) < 0) {
+		fprintf(stderr, "rf_speed fail\n");
+		goto out;
+	}
 
+	/*
+	char *msg = "Hello";
 	struct rf_packet packet = {
 		.flags = FT_DATA,
 		.dlen = strlen(msg),
 	};
 	memset(&packet.data, 0, sizeof(packet.data));
-	strcpy((char*)&packet.data, msg);
+	strcpy(&packet.data, msg);
+	*/
 
+	struct rf_packet pack1 = {
+		.flags = FT_DATA,
+		.dlen = 14,
+		.data = "Hello, this is",
+	};
+	struct rf_packet pack2 = {
+		.flags = FT_DATA | FT_END,
+		.dlen = 12,
+		.data = " a test msg.",
+	};
+
+	int ret;
 	while (!flag) {
-		if (rf_packet_send(&dev, &packet)) {
-			printf("send failed\n");
-		} else {
-			printf("send ok\n");
+		usleep(500 * 1000);
+
+		ret = rf_packet_send(&dev, &pack1);
+		if (ret) {
+			printf("pack1 failed\n");
+			continue;
 		}
 
-		usleep(1000 * 1000);
+		ret = rf_packet_send(&dev, &pack2);
+		if (ret) {
+			printf("pack2 failed\n");
+			continue;
+		}
+
+		printf("ok\n");
 	}
 
 out:

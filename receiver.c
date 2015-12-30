@@ -33,6 +33,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "rx_addr fail\n");
 		goto out;
 	}
+
+	if (rf_speed(&dev, SPEED_250K) < 0) {
+		fprintf(stderr, "rf_speed fail\n");
+		goto out;
+	}
 	
 	struct rf_packet packet;
 
@@ -40,18 +45,13 @@ int main(int argc, char **argv)
 		if (rf_packet_recv(&dev, &packet, 2000))
 			printf("timeout\n");
 		else {
-			printf("received packet\n");
-			
-			for (int ln = 0; ln < 4; ln++) {
-				printf("  ");
-				for (int i = 0; i < 8; i++) {
-					printf("%02x",
-						((uint8_t*)&packet)[ln*8+i]);
-				}
-				printf("\n");
+			printf("received packet");
+			for (int i = 0; i < PACKET_LEN; i++) {
+				if (i % 16 == 0)
+					printf("\n  ");
+				printf("%02x", ((uint8_t*)&packet)[i]);
 			}
-
-			printf("  FLAGS=%02x DLEN=%d\n", packet.flags,
+			printf("\n  FLAGS=%02x DLEN=%d\n", packet.flags,
 					packet.dlen);
 		}
 	}

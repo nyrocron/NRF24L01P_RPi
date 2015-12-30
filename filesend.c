@@ -67,6 +67,11 @@ int main(int argc, char **argv)
 		goto out_rfclose;
 	}
 
+	if (rf_speed(&dev, SPEED_250K) < 0) {
+		fprintf(stderr, "rf_speed fail\n");
+		goto out;
+	}
+
 	struct timespec start, end, delta;
 	clock_gettime(CLOCK_MONOTONIC, &start);
 	ret = rf_file_send(&dev, infile);
